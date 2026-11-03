@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bookmarks — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/feed.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h2>Bookmarks</h2>
+          <span style="font-size: var(--font-size-xs); color: var(--text-muted);" id="bookmarks-count-sub">Private saved items</span>
+        </div>
+      </header>
+
+      <section id="bookmarks-posts-container">
+        <div style="text-align: center; padding: var(--space-8); color: var(--text-muted);">
+          Loading your saved bookmarks...
+        </div>
+      </section>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { interactionService } from './src/services/interactionService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { createPostCard } from './src/components/postCard.js';
+
+    let currentUser = null;
+
+    async function initBookmarks() {
+      currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      await renderNavigation('bookmarks');
+      await renderRightSidebar();
+      await loadBookmarks();
+    }
+
+    async function loadBookmarks() {
+      const container = document.getElementById('bookmarks-posts-container');
+      try {
+        const posts = await interactionService.getUserBookmarks(currentUser.id);
+        container.innerHTML = '';
+
+        if (!posts || posts.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon"><i data-lucide="bookmark"></i></div>
+              <h3>Save posts for later</h3>
+              <p>Don't let the best insights slip away! Click the bookmark icon on any post to store it here privately.</p>
+            </div>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+          return;
+        }
+
+        document.getElementById('bookmarks-count-sub').textContent = `${posts.length} saved post${posts.length === 1 ? '' : 's'}`;
+
+        posts.forEach(p => {
+          container.appendChild(createPostCard(p, currentUser));
+        });
+
+      } catch (err) {
+        container.innerHTML = `<div style="padding:var(--space-6); text-align:center; color:var(--accent-rose);">Failed to load bookmarks</div>`;
+      }
+    }
+
+    initBookmarks();
+  </script>
+</body>
+</html>

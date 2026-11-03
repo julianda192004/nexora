@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join NEXORA — Create Your Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/pages/auth.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card fade-in">
+      <div class="auth-brand">
+        <a href="index.html" class="brand-logo-icon">
+          <i data-lucide="zap"></i>
+        </a>
+        <h1>Join NEXORA</h1>
+        <p>Connect beyond boundaries with your new identity.</p>
+      </div>
+
+      <!-- Feedback Banner -->
+      <div id="auth-alert" class="auth-alert"></div>
+
+      <form id="register-form" class="auth-form">
+        <div class="input-group">
+          <label for="reg-username">Username</label>
+          <input type="text" id="reg-username" placeholder="e.g. alex_coder" required autocomplete="username" />
+          <span class="input-help">3-20 characters: letters, numbers, underscores only</span>
+        </div>
+
+        <div class="input-group">
+          <label for="reg-display-name">Display Name</label>
+          <input type="text" id="reg-display-name" placeholder="e.g. Alex Johnson" required />
+        </div>
+
+        <div class="input-group">
+          <label for="reg-email">Email Address</label>
+          <input type="email" id="reg-email" placeholder="name@example.com" required autocomplete="email" />
+        </div>
+
+        <div class="input-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="••••••••" required autocomplete="new-password" />
+          <span class="input-help">Minimum 6 characters</span>
+        </div>
+
+        <div class="input-group">
+          <label for="reg-confirm-password">Confirm Password</label>
+          <input type="password" id="reg-confirm-password" placeholder="••••••••" required autocomplete="new-password" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-submit-register" style="margin-top: var(--space-2); padding: 0.85rem;">
+          Create Account
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Already have a NEXORA account? <a href="login.html">Sign In</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { validateUsername, validateEmail, validatePassword } from './src/utils/validators.js';
+    import { ensureClient } from './src/config/supabase.js';
+
+    if (window.lucide) window.lucide.createIcons();
+
+    const form = document.getElementById('register-form');
+    const alertBox = document.getElementById('auth-alert');
+    const submitBtn = document.getElementById('btn-submit-register');
+
+    const showAlert = (message, type = 'error') => {
+      alertBox.textContent = message;
+      alertBox.className = `auth-alert ${type}`;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!ensureClient()) return;
+
+      const username = document.getElementById('reg-username').value.trim();
+      const displayName = document.getElementById('reg-display-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const confirmPassword = document.getElementById('reg-confirm-password').value;
+
+      // Client-side validations
+      const userErr = validateUsername(username);
+      if (userErr) return showAlert(userErr);
+
+      if (!displayName) return showAlert('Display Name is required.');
+
+      const emailErr = validateEmail(email);
+      if (emailErr) return showAlert(emailErr);
+
+      const passErr = validatePassword(password);
+      if (passErr) return showAlert(passErr);
+
+      if (password !== confirmPassword) {
+        return showAlert('Passwords do not match. Please re-enter.');
+      }
+
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating Account...';
+        showAlert('');
+
+        await authService.signUp({
+          email,
+          password,
+          username,
+          displayName
+        });
+
+        showAlert('Account created successfully! Redirecting...', 'success');
+        setTimeout(() => {
+          window.location.href = 'feed.html';
+        }, 1200);
+      } catch (err) {
+        showAlert(err.message || 'Registration failed. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Account';
+      }
+    });
+  </script>
+</body>
+</html>

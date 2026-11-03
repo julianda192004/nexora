@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/explore.css">
+  <link rel="stylesheet" href="assets/css/pages/feed.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <!-- Search Bar -->
+      <div class="explore-search-bar">
+        <div class="search-box-wrap">
+          <i data-lucide="search"></i>
+          <input type="text" id="explore-search-input" placeholder="Search people, posts, tags, or communities..." />
+        </div>
+      </div>
+
+      <!-- Discovery Section (Shown when not actively searching) -->
+      <div id="explore-discovery-view">
+        <header class="page-header" style="height: auto; padding: var(--space-3) var(--space-4);">
+          <h2 style="font-size: 1.15rem;">Trending Topics</h2>
+        </header>
+
+        <!-- Topic Tags Cloud -->
+        <div style="padding: var(--space-4); display: flex; gap: var(--space-2); flex-wrap: wrap;" id="topic-tags-cloud"></div>
+
+        <!-- Trending Posts -->
+        <header class="page-header" style="height: auto; padding: var(--space-3) var(--space-4); margin-top: var(--space-2);">
+          <h2 style="font-size: 1.15rem;">Popular Discussions</h2>
+        </header>
+        <section id="trending-posts-feed"></section>
+      </div>
+
+      <!-- Search Results View (Shown when searching) -->
+      <div id="explore-results-view" class="hidden">
+        <header class="page-header" style="height: auto; padding: var(--space-3) var(--space-4); justify-content: space-between;">
+          <h2 id="search-results-heading" style="font-size: 1.15rem;">Search Results</h2>
+          <button class="btn btn-secondary" id="btn-clear-search" style="font-size: var(--font-size-xs); padding: 4px 10px;">Clear</button>
+        </header>
+
+        <!-- Users matched -->
+        <div id="matched-users-section" style="padding: var(--space-4); border-bottom: 1px solid var(--border-subtle);">
+          <h3 style="font-size: var(--font-size-xs); text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--space-3);">People</h3>
+          <div id="matched-users-list" class="flex flex-col gap-2"></div>
+        </div>
+
+        <!-- Posts matched -->
+        <div id="matched-posts-section">
+          <div id="matched-posts-list"></div>
+        </div>
+      </div>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { searchService } from './src/services/searchService.js';
+    import { postService } from './src/services/postService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { createPostCard } from './src/components/postCard.js';
+    import { escapeHTML } from './src/utils/security.js';
+
+    let currentUser = null;
+
+    async function initExplore() {
+      currentUser = await authService.getCurrentUser();
+      await renderNavigation('explore');
+      await renderRightSidebar();
+
+      // Render topics cloud
+      const topics = searchService.getTrendingTopics();
+      const tagsContainer = document.getElementById('topic-tags-cloud');
+      tagsContainer.innerHTML = topics.map(t => `
+        <div class="topic-tag-chip" data-tag="${t.tag}">
+          <i data-lucide="hash" style="width: 14px; color: var(--primary-400);"></i>
+          <span>${t.tag}</span>
+          <span style="font-size: 11px; color: var(--text-muted);">${t.posts}</span>
+        </div>
+      `).join('');
+
+      tagsContainer.querySelectorAll('.topic-tag-chip').forEach(chip => {
+        chip.onclick = () => {
+          const tag = chip.getAttribute('data-tag');
+          const input = document.getElementById('explore-search-input');
+          input.value = tag;
+          executeSearch(tag);
+        };
+      });
+
+      // Load Trending Posts
+      loadTrendingPosts();
+
+      // Search Handler
+      const searchInput = document.getElementById('explore-search-input');
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryParam = urlParams.get('q');
+
+      if (queryParam) {
+        searchInput.value = queryParam;
+        executeSearch(queryParam);
+      }
+
+      let searchTimer;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          const q = searchInput.value.trim();
+          if (q) executeSearch(q);
+          else clearSearch();
+        }, 350);
+      });
+
+      document.getElementById('btn-clear-search').onclick = clearSearch;
+    }
+
+    async function loadTrendingPosts() {
+      const container = document.getElementById('trending-posts-feed');
+      try {
+        const posts = await postService.getFeedPosts({
+          filter: 'trending',
+          currentUserId: currentUser?.id,
+          limit: 10
+        });
+
+        container.innerHTML = '';
+        if (posts.length === 0) {
+          container.innerHTML = `<div class="empty-state"><p>No trending posts right now.</p></div>`;
+          return;
+        }
+
+        posts.forEach(p => {
+          container.appendChild(createPostCard(p, currentUser));
+        });
+      } catch (err) {
+        container.innerHTML = `<div style="padding:var(--space-4); text-align:center; color:var(--accent-rose);">Error loading trending posts</div>`;
+      }
+    }
+
+    async function executeSearch(query) {
+      document.getElementById('explore-discovery-view').classList.add('hidden');
+      const resultsView = document.getElementById('explore-results-view');
+      resultsView.classList.remove('hidden');
+
+      document.getElementById('search-results-heading').textContent = `Results for "${query}"`;
+      const usersList = document.getElementById('matched-users-list');
+      const postsList = document.getElementById('matched-posts-list');
+
+      usersList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">Searching users...</div>';
+      postsList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: var(--space-4);">Searching posts...</div>';
+
+      try {
+        const results = await searchService.searchGlobal(query);
+
+        // Render matched users
+        if (results.users.length === 0) {
+          usersList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No users found.</div>';
+        } else {
+          usersList.innerHTML = results.users.map(u => `
+            <div class="flex items-center justify-between" style="padding: 6px 0;">
+              <a href="profile.html?u=${encodeURIComponent(u.username)}" class="flex items-center gap-2" style="text-decoration: none;">
+                <div class="avatar avatar-sm">
+                  <img src="${u.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=' + u.username}" alt="${escapeHTML(u.display_name)}" />
+                </div>
+                <div>
+                  <div style="font-weight: 600; font-size: var(--font-size-sm); color: var(--text-primary);">${escapeHTML(u.display_name)}</div>
+                  <div style="font-size: var(--font-size-xs); color: var(--text-muted);">@${escapeHTML(u.username)}</div>
+                </div>
+              </a>
+              <a href="profile.html?u=${encodeURIComponent(u.username)}" class="btn btn-secondary" style="padding: 4px 10px; font-size: var(--font-size-xs);">View</a>
+            </div>
+          `).join('');
+        }
+
+        // Render matched posts
+        postsList.innerHTML = '';
+        if (results.posts.length === 0) {
+          postsList.innerHTML = '<div style="padding: var(--space-6); text-align: center; color: var(--text-muted); font-size: var(--font-size-sm);">No posts matched your query.</div>';
+        } else {
+          results.posts.forEach(p => {
+            postsList.appendChild(createPostCard(p, currentUser));
+          });
+        }
+
+      } catch (err) {
+        postsList.innerHTML = `<div style="padding:var(--space-4); color:var(--accent-rose);">Search failed.</div>`;
+      }
+    }
+
+    function clearSearch() {
+      document.getElementById('explore-search-input').value = '';
+      document.getElementById('explore-results-view').classList.add('hidden');
+      document.getElementById('explore-discovery-view').classList.remove('hidden');
+    }
+
+    initExplore();
+  </script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feed — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/feed.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- Mobile Header -->
+  <div id="mobile-top-root"></div>
+
+  <!-- App Main Layout Container -->
+  <div class="app-container">
+    <!-- Left Navigation Sidebar -->
+    <aside id="sidebar-left-root"></aside>
+
+    <!-- Center Feed Content -->
+    <main class="main-content">
+      <!-- Feed Header & Tabs -->
+      <header class="page-header" style="flex-direction: column; align-items: stretch; height: auto; padding: 0;">
+        <div style="padding: var(--space-3) var(--space-4); display: flex; align-items: center; justify-content: space-between;">
+          <h2 style="font-size: 1.25rem;">Home Feed</h2>
+          <button class="btn-icon" id="btn-refresh-feed" title="Refresh Feed">
+            <i data-lucide="refresh-cw" style="width: 18px; height: 18px;"></i>
+          </button>
+        </div>
+
+        <!-- Filter Tabs: For You, Following, Latest, Trending -->
+        <nav class="tabs-nav">
+          <button class="tab-btn active" data-tab="for_you">For You</button>
+          <button class="tab-btn" data-tab="following">Following</button>
+          <button class="tab-btn" data-tab="latest">Latest</button>
+          <button class="tab-btn" data-tab="trending">Trending</button>
+        </nav>
+      </header>
+
+      <!-- Post Composer (Inline) -->
+      <section id="feed-composer-root"></section>
+
+      <!-- Posts List -->
+      <section id="posts-feed-container">
+        <!-- Skeleton Loading placeholder -->
+        <div class="post-card skeleton-loading" style="display: flex; gap: var(--space-3); padding: var(--space-4);">
+          <div class="skeleton" style="width: 44px; height: 44px; border-radius: var(--radius-full);"></div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: var(--space-2);">
+            <div class="skeleton" style="width: 35%; height: 16px;"></div>
+            <div class="skeleton" style="width: 80%; height: 14px;"></div>
+            <div class="skeleton" style="width: 95%; height: 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 200px; border-radius: var(--radius-md); margin-top: 4px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Load More / End Indicator -->
+      <div id="feed-load-more" style="text-align: center; padding: var(--space-6); display: none;">
+        <button class="btn btn-secondary" id="btn-load-more-posts">Load More Posts</button>
+      </div>
+    </main>
+
+    <!-- Right Sidebar (Trends, Suggestions) -->
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav id="mobile-bottom-root"></nav>
+
+  <!-- Create Post Modal Dialog -->
+  <div class="nexora-modal-overlay" id="composer-modal-overlay">
+    <div class="nexora-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-badge-icon"><i data-lucide="edit-3"></i></div>
+          <h3>Create New Post</h3>
+        </div>
+        <button type="button" class="btn-icon" onclick="document.getElementById('composer-modal-overlay').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div id="modal-composer-root"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { postService } from './src/services/postService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { setupComposer } from './src/components/postComposer.js';
+    import { createPostCard } from './src/components/postCard.js';
+    import { showToast } from './src/components/toast.js';
+
+    let currentUser = null;
+    let currentTab = 'for_you';
+    let currentPage = 0;
+    const POSTS_LIMIT = 15;
+
+    async function initFeed() {
+      currentUser = await authService.getCurrentUser();
+      
+      // Render layout components
+      await renderNavigation('feed');
+      await renderRightSidebar();
+
+      // Setup Post Composer if authenticated
+      if (currentUser) {
+        setupComposer({
+          containerId: 'feed-composer-root',
+          currentUser,
+          onPostCreated: (newPost) => {
+            const feedContainer = document.getElementById('posts-feed-container');
+            const card = createPostCard(newPost, currentUser);
+            feedContainer.prepend(card);
+          }
+        });
+
+        setupComposer({
+          containerId: 'modal-composer-root',
+          currentUser,
+          onPostCreated: (newPost) => {
+            document.getElementById('composer-modal-overlay')?.classList.remove('active');
+            const feedContainer = document.getElementById('posts-feed-container');
+            const card = createPostCard(newPost, currentUser);
+            feedContainer.prepend(card);
+          }
+        });
+      } else {
+        const composerRoot = document.getElementById('feed-composer-root');
+        if (composerRoot) {
+          composerRoot.innerHTML = `
+            <div style="padding: var(--space-4); background: var(--bg-surface); text-align: center; border-bottom: 1px solid var(--border-subtle);">
+              <p style="color: var(--text-secondary); margin-bottom: var(--space-3);">Join NEXORA to share posts, like, and join discussions.</p>
+              <a href="login.html" class="btn btn-primary" style="padding: 6px 18px;">Sign In to Post</a>
+            </div>
+          `;
+        }
+      }
+
+      // Check URL parameters for direct action
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('action') === 'compose' && currentUser) {
+        document.getElementById('composer-modal-overlay')?.classList.add('active');
+      }
+
+      // Setup Tab click handlers
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('active')) return;
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentTab = btn.getAttribute('data-tab');
+          currentPage = 0;
+          loadPosts(true);
+        });
+      });
+
+      // Refresh button
+      document.getElementById('btn-refresh-feed')?.addEventListener('click', () => {
+        currentPage = 0;
+        loadPosts(true);
+      });
+
+      // Load initial posts
+      await loadPosts(true);
+    }
+
+    async function loadPosts(reset = false) {
+      const feedContainer = document.getElementById('posts-feed-container');
+      const loadMoreWrap = document.getElementById('feed-load-more');
+
+      if (reset) {
+        feedContainer.innerHTML = `
+          <div class="post-card skeleton-loading" style="display: flex; gap: var(--space-3); padding: var(--space-4);">
+            <div class="skeleton" style="width: 44px; height: 44px; border-radius: var(--radius-full);"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: var(--space-2);">
+              <div class="skeleton" style="width: 35%; height: 16px;"></div>
+              <div class="skeleton" style="width: 80%; height: 14px;"></div>
+              <div class="skeleton" style="width: 95%; height: 14px;"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      try {
+        const posts = await postService.getFeedPosts({
+          filter: currentTab,
+          currentUserId: currentUser?.id,
+          page: currentPage,
+          limit: POSTS_LIMIT
+        });
+
+        if (reset) feedContainer.innerHTML = '';
+
+        if (!posts || posts.length === 0) {
+          if (reset) {
+            feedContainer.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="feather"></i></div>
+                <h3 style="color: var(--text-primary); font-size: 1.1rem; font-weight: 700;">No posts in this feed yet</h3>
+                <p style="font-size: var(--font-size-sm); max-width: 380px;">
+                  ${currentTab === 'following' 
+                    ? 'Follow accounts from the Explore tab to see their updates here.' 
+                    : 'Be the first pioneer to publish something inspiring to the NEXORA network!'}
+                </p>
+              </div>
+            `;
+            if (window.lucide) window.lucide.createIcons();
+          }
+          if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+          return;
+        }
+
+        posts.forEach(post => {
+          const card = createPostCard(post, currentUser);
+          feedContainer.appendChild(card);
+        });
+
+        if (loadMoreWrap) {
+          loadMoreWrap.style.display = posts.length >= POSTS_LIMIT ? 'block' : 'none';
+        }
+      } catch (err) {
+        console.error('Error fetching feed:', err);
+        feedContainer.innerHTML = `
+          <div style="padding: var(--space-6); text-align: center; color: var(--accent-rose);">
+            Unable to load feed data. Please verify your Supabase configuration.
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById('btn-load-more-posts')?.addEventListener('click', () => {
+      currentPage++;
+      loadPosts(false);
+    });
+
+    initFeed();
+  </script>
+</body>
+</html>

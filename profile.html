@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/feed.css">
+  <link rel="stylesheet" href="assets/css/pages/profile.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <!-- Profile Header / Back -->
+      <header class="page-header">
+        <div class="flex items-center gap-3">
+          <button class="btn-icon" onclick="history.back()" title="Go back">
+            <i data-lucide="arrow-left"></i>
+          </button>
+          <div>
+            <h2 id="header-profile-name" style="font-size: 1.15rem; line-height: 1.2;">Profile</h2>
+            <span id="header-posts-count" style="font-size: var(--font-size-xs); color: var(--text-muted);">0 posts</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Profile Card Details -->
+      <div id="profile-container">
+        <!-- Banner -->
+        <div class="profile-banner" id="profile-banner-img"></div>
+
+        <div class="profile-info-wrap">
+          <!-- Avatar & Actions -->
+          <div class="profile-avatar-row">
+            <div class="avatar avatar-xl profile-avatar">
+              <img id="profile-avatar-img" src="https://api.dicebear.com/7.x/identicon/svg?seed=user" alt="Avatar" />
+            </div>
+            <div id="profile-action-btns" class="flex gap-2">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Names & Verification -->
+          <div class="profile-names">
+            <h2 id="profile-display-name">
+              <span>Loading User...</span>
+            </h2>
+            <div class="profile-handle" id="profile-username">@username</div>
+          </div>
+
+          <!-- Biography -->
+          <p class="profile-bio" id="profile-bio-text"></p>
+
+          <!-- Metadata (Join date, Website, Location) -->
+          <div class="profile-metadata">
+            <span id="profile-location" class="hidden"><i data-lucide="map-pin" style="width: 14px;"></i> <span class="val"></span></span>
+            <span id="profile-website" class="hidden"><i data-lucide="link" style="width: 14px;"></i> <a href="#" target="_blank" class="val"></a></span>
+            <span id="profile-joined"><i data-lucide="calendar" style="width: 14px;"></i> <span class="val">Joined recently</span></span>
+          </div>
+
+          <!-- Stats (Following, Followers) -->
+          <div class="profile-stats">
+            <span class="stat-item" id="btn-show-following"><strong id="stat-following">0</strong> Following</span>
+            <span class="stat-item" id="btn-show-followers"><strong id="stat-followers">0</strong> Followers</span>
+          </div>
+        </div>
+
+        <!-- Profile Tabs -->
+        <nav class="tabs-nav">
+          <button class="tab-btn active" data-ptab="posts">Posts</button>
+          <button class="tab-btn" data-ptab="media">Media</button>
+        </nav>
+      </div>
+
+      <!-- User Posts List -->
+      <section id="profile-posts-container">
+        <div style="text-align: center; padding: var(--space-8); color: var(--text-muted);">
+          Loading posts...
+        </div>
+      </section>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <!-- Edit Profile Modal -->
+  <div class="nexora-modal-overlay" id="edit-profile-modal">
+    <div class="nexora-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-badge-icon"><i data-lucide="user-check"></i></div>
+          <h3>Edit Profile</h3>
+        </div>
+        <button type="button" class="btn-icon" onclick="document.getElementById('edit-profile-modal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Display Name</label>
+          <input type="text" id="edit-display-name" />
+        </div>
+        <div class="input-group">
+          <label>Bio</label>
+          <textarea id="edit-bio" rows="3" placeholder="Tell the world about yourself..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>Website URL</label>
+          <input type="text" id="edit-website" placeholder="https://example.com" />
+        </div>
+        <div class="input-group">
+          <label>Location</label>
+          <input type="text" id="edit-location" placeholder="City, Country" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('edit-profile-modal').classList.remove('active')">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-save-profile">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { profileService } from './src/services/profileService.js';
+    import { postService } from './src/services/postService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { createPostCard } from './src/components/postCard.js';
+    import { showToast } from './src/components/toast.js';
+    import { formatFullDate } from './src/utils/formatters.js';
+
+    let currentUser = null;
+    let targetProfile = null;
+
+    async function initProfile() {
+      currentUser = await authService.getCurrentUser();
+      await renderNavigation('profile');
+      await renderRightSidebar();
+
+      // Read query parameter for username e.g. profile.html?u=alex
+      const urlParams = new URLSearchParams(window.location.search);
+      const usernameParam = urlParams.get('u');
+
+      if (usernameParam) {
+        targetProfile = await profileService.getProfileByUsername(usernameParam);
+      } else if (currentUser) {
+        targetProfile = await profileService.getProfileById(currentUser.id);
+      }
+
+      if (!targetProfile) {
+        document.getElementById('profile-container').innerHTML = `
+          <div class="empty-state">
+            <h3 style="color:var(--text-primary);">User Not Found</h3>
+            <p>The profile you are looking for does not exist on NEXORA.</p>
+          </div>
+        `;
+        return;
+      }
+
+      renderProfileDetails();
+      await loadUserPosts();
+    }
+
+    function renderProfileDetails() {
+      const isOwnProfile = currentUser && currentUser.id === targetProfile.id;
+
+      document.getElementById('header-profile-name').textContent = targetProfile.display_name;
+      document.getElementById('header-posts-count').textContent = `${targetProfile.posts_count || 0} posts`;
+      document.getElementById('profile-display-name').textContent = targetProfile.display_name;
+      document.getElementById('profile-username').textContent = `@${targetProfile.username}`;
+      document.getElementById('profile-avatar-img').src = targetProfile.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${targetProfile.username}`;
+
+      if (targetProfile.banner_url) {
+        document.getElementById('profile-banner-img').style.backgroundImage = `url('${targetProfile.banner_url}')`;
+      }
+
+      document.getElementById('profile-bio-text').textContent = targetProfile.bio || 'No biography written yet.';
+      document.getElementById('stat-followers').textContent = targetProfile.followers_count || 0;
+      document.getElementById('stat-following').textContent = targetProfile.following_count || 0;
+
+      if (targetProfile.created_at) {
+        document.getElementById('profile-joined').querySelector('.val').textContent = `Joined ${formatFullDate(targetProfile.created_at)}`;
+      }
+
+      if (targetProfile.location) {
+        const loc = document.getElementById('profile-location');
+        loc.classList.remove('hidden');
+        loc.querySelector('.val').textContent = targetProfile.location;
+      }
+
+      if (targetProfile.website) {
+        const web = document.getElementById('profile-website');
+        web.classList.remove('hidden');
+        const link = web.querySelector('.val');
+        link.textContent = targetProfile.website.replace(/^https?:\/\//, '');
+        link.href = targetProfile.website;
+      }
+
+      // Actions buttons
+      const actionsContainer = document.getElementById('profile-action-btns');
+      if (isOwnProfile) {
+        actionsContainer.innerHTML = `
+          <button class="btn btn-secondary" id="btn-open-edit-profile">Edit Profile</button>
+        `;
+        document.getElementById('btn-open-edit-profile').onclick = () => {
+          document.getElementById('edit-display-name').value = targetProfile.display_name;
+          document.getElementById('edit-bio').value = targetProfile.bio || '';
+          document.getElementById('edit-website').value = targetProfile.website || '';
+          document.getElementById('edit-location').value = targetProfile.location || '';
+          document.getElementById('edit-profile-modal').classList.add('active');
+        };
+      } else {
+        actionsContainer.innerHTML = `
+          <button class="btn btn-primary" id="btn-profile-follow">Follow</button>
+          <a href="messages.html?partner=${targetProfile.id}" class="btn btn-secondary btn-icon" title="Send Direct Message">
+            <i data-lucide="mail"></i>
+          </a>
+        `;
+
+        if (currentUser) {
+          profileService.isFollowing(currentUser.id, targetProfile.id).then(following => {
+            const btnFollow = document.getElementById('btn-profile-follow');
+            if (btnFollow) {
+              if (following) {
+                btnFollow.textContent = 'Following';
+                btnFollow.className = 'btn btn-outline';
+              }
+              btnFollow.onclick = async () => {
+                const nowFollowing = btnFollow.textContent === 'Following';
+                if (nowFollowing) {
+                  await profileService.unfollowUser(currentUser.id, targetProfile.id);
+                  btnFollow.textContent = 'Follow';
+                  btnFollow.className = 'btn btn-primary';
+                } else {
+                  await profileService.followUser(currentUser.id, targetProfile.id);
+                  btnFollow.textContent = 'Following';
+                  btnFollow.className = 'btn btn-outline';
+                }
+              };
+            }
+          });
+        }
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // Save Profile edits
+    document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
+      const displayName = document.getElementById('edit-display-name').value.trim();
+      const bio = document.getElementById('edit-bio').value.trim();
+      const website = document.getElementById('edit-website').value.trim();
+      const location = document.getElementById('edit-location').value.trim();
+
+      if (!displayName) {
+        showToast('Display Name cannot be empty', 'error');
+        return;
+      }
+
+      try {
+        await profileService.updateProfile(currentUser.id, {
+          display_name: displayName,
+          bio,
+          website,
+          location
+        });
+
+        targetProfile.display_name = displayName;
+        targetProfile.bio = bio;
+        targetProfile.website = website;
+        targetProfile.location = location;
+
+        renderProfileDetails();
+        document.getElementById('edit-profile-modal').classList.remove('active');
+        showToast('Profile updated successfully!', 'success');
+      } catch (err) {
+        showToast(err.message || 'Failed to update profile', 'error');
+      }
+    });
+
+    async function loadUserPosts() {
+      const postsContainer = document.getElementById('profile-posts-container');
+      try {
+        const posts = await postService.getPostsByUserId(targetProfile.id, currentUser?.id);
+        postsContainer.innerHTML = '';
+
+        if (!posts || posts.length === 0) {
+          postsContainer.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon"><i data-lucide="message-square"></i></div>
+              <h3>No posts published yet</h3>
+              <p>When @${targetProfile.username} publishes posts, they will show up here.</p>
+            </div>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+          return;
+        }
+
+        posts.forEach(post => {
+          const card = createPostCard(post, currentUser);
+          postsContainer.appendChild(card);
+        });
+      } catch (err) {
+        postsContainer.innerHTML = `<div style="padding:var(--space-6); text-align:center; color:var(--accent-rose);">Failed to load posts</div>`;
+      }
+    }
+
+    initProfile();
+  </script>
+</body>
+</html>

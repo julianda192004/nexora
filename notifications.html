@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h2>Notifications</h2>
+        <button class="btn btn-secondary" id="btn-mark-all-read" style="padding: 4px 12px; font-size: var(--font-size-xs);">
+          <i data-lucide="check-check" style="width: 14px;"></i> Mark all as read
+        </button>
+      </header>
+
+      <!-- Notifications List -->
+      <section id="notifications-list" class="flex flex-col">
+        <div style="text-align: center; padding: var(--space-8); color: var(--text-muted);">
+          Loading notifications...
+        </div>
+      </section>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { notificationService } from './src/services/notificationService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { formatRelativeTime } from './src/utils/formatters.js';
+    import { escapeHTML } from './src/utils/security.js';
+    import { showToast } from './src/components/toast.js';
+
+    let currentUser = null;
+
+    async function initNotifications() {
+      currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      await renderNavigation('notifications');
+      await renderRightSidebar();
+      await loadNotifications();
+
+      // Realtime listener
+      notificationService.subscribeToNotifications(currentUser.id, (notif) => {
+        showToast(`New notification from @${notif.actor?.username || 'user'}`, 'info');
+        loadNotifications();
+      });
+
+      document.getElementById('btn-mark-all-read')?.addEventListener('click', async () => {
+        try {
+          await notificationService.markAllAsRead(currentUser.id);
+          document.querySelectorAll('.notification-item.unread').forEach(item => {
+            item.classList.remove('unread');
+            item.style.background = 'transparent';
+          });
+          const badge = document.getElementById('nav-badge-notif');
+          if (badge) badge.remove();
+          showToast('All notifications marked as read', 'success');
+        } catch (err) {
+          showToast('Failed to mark notifications', 'error');
+        }
+      });
+    }
+
+    async function loadNotifications() {
+      const container = document.getElementById('notifications-list');
+      try {
+        const notifs = await notificationService.getNotifications(currentUser.id);
+        if (!notifs || notifs.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon"><i data-lucide="bell-off"></i></div>
+              <h3>Nothing to see here yet</h3>
+              <p>When someone likes your posts, replies, or follows your account, you will find it here.</p>
+            </div>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+          return;
+        }
+
+        container.innerHTML = notifs.map(n => {
+          const actor = n.actor || { username: 'user', display_name: 'Nexora Member' };
+          let icon = 'bell';
+          let actionText = 'interacted with you';
+          let color = 'var(--primary-400)';
+
+          if (n.type === 'like') {
+            icon = 'heart';
+            actionText = 'liked your post';
+            color = 'var(--accent-rose)';
+          } else if (n.type === 'comment' || n.type === 'reply') {
+            icon = 'message-circle';
+            actionText = n.type === 'reply' ? 'replied to your comment' : 'commented on your post';
+            color = 'var(--accent-electric)';
+          } else if (n.type === 'follow') {
+            icon = 'user-plus';
+            actionText = 'started following you';
+            color = 'var(--accent-violet)';
+          }
+
+          return `
+            <div class="notification-item ${!n.is_read ? 'unread' : ''}" data-id="${n.id}" style="display: flex; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--border-subtle); ${!n.is_read ? 'background: rgba(99, 102, 241, 0.06);' : ''}">
+              <div style="color: ${color}; width: 28px; display: flex; justify-content: center; padding-top: 2px;">
+                <i data-lucide="${icon}"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: 4px;">
+                  <a href="profile.html?u=${encodeURIComponent(actor.username)}" class="avatar avatar-xs">
+                    <img src="${actor.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=' + actor.username}" alt="${escapeHTML(actor.display_name)}" />
+                  </a>
+                  <a href="profile.html?u=${encodeURIComponent(actor.username)}" style="font-weight: 700; color: var(--text-primary); font-size: var(--font-size-sm); text-decoration: none;">
+                    ${escapeHTML(actor.display_name)}
+                  </a>
+                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">${actionText}</span>
+                  <span style="color: var(--text-muted); font-size: 0.72rem; margin-left: auto;">${formatRelativeTime(n.created_at)}</span>
+                </div>
+                ${n.post?.content ? `
+                  <div style="font-size: var(--font-size-xs); color: var(--text-muted); padding: 4px 8px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); margin-top: 4px;" class="truncate">
+                    "${escapeHTML(n.post.content)}"
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (window.lucide) window.lucide.createIcons();
+
+        // Mark individual notification as read on click
+        container.querySelectorAll('.notification-item.unread').forEach(item => {
+          item.onclick = async () => {
+            const notifId = item.getAttribute('data-id');
+            await notificationService.markAsRead(notifId);
+            item.classList.remove('unread');
+            item.style.background = 'transparent';
+          };
+        });
+
+      } catch (err) {
+        container.innerHTML = `<div style="padding:var(--space-6); text-align:center; color:var(--accent-rose);">Failed to load notifications</div>`;
+      }
+    }
+
+    initNotifications();
+  </script>
+</body>
+</html>

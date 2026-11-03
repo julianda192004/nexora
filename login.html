@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/pages/auth.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card fade-in">
+      <div class="auth-brand">
+        <a href="index.html" class="brand-logo-icon">
+          <i data-lucide="zap"></i>
+        </a>
+        <h1>Welcome Back</h1>
+        <p>Log in to access your feed, messages, and communities.</p>
+      </div>
+
+      <!-- Feedback Alert -->
+      <div id="auth-alert" class="auth-alert"></div>
+
+      <form id="login-form" class="auth-form">
+        <div class="input-group">
+          <label for="login-email">Email Address</label>
+          <input type="email" id="login-email" placeholder="name@example.com" required autocomplete="email" />
+        </div>
+
+        <div class="input-group">
+          <div class="flex justify-between items-center">
+            <label for="login-password">Password</label>
+            <a href="forgot-password.html" style="font-size: var(--font-size-xs);">Forgot password?</a>
+          </div>
+          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-submit-login" style="margin-top: var(--space-2); padding: 0.85rem;">
+          Sign In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account yet? <a href="register.html">Join NEXORA</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { ensureClient } from './src/config/supabase.js';
+
+    if (window.lucide) window.lucide.createIcons();
+
+    const form = document.getElementById('login-form');
+    const alertBox = document.getElementById('auth-alert');
+    const submitBtn = document.getElementById('btn-submit-login');
+
+    const showAlert = (message, type = 'error') => {
+      alertBox.textContent = message;
+      alertBox.className = `auth-alert ${type}`;
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!ensureClient()) return;
+
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      if (!email || !password) {
+        return showAlert('Please enter both email and password.');
+      }
+
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Authenticating...';
+        showAlert('');
+
+        await authService.signIn({ email, password });
+        showAlert('Authentication successful! Loading feed...', 'success');
+        
+        setTimeout(() => {
+          window.location.href = 'feed.html';
+        }, 800);
+      } catch (err) {
+        showAlert(err.message || 'Invalid email or password.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+      }
+    });
+  </script>
+</body>
+</html>

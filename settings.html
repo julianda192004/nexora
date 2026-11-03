@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h2>Settings & Preferences</h2>
+      </header>
+
+      <div style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6);">
+        <!-- 1. Database & Cloud Connection -->
+        <div class="widget-card">
+          <div class="widget-title">
+            <span>Supabase Cloud Integration</span>
+            <i data-lucide="database" style="color: var(--accent-electric); width: 18px;"></i>
+          </div>
+          <p style="font-size: var(--font-size-xs); color: var(--text-secondary); line-height: 1.5;">
+            Configure your serverless PostgreSQL database and Supabase client credentials.
+          </p>
+          <div class="input-group">
+            <label>Supabase URL</label>
+            <input type="text" id="settings-supabase-url" placeholder="https://xyz.supabase.co" />
+          </div>
+          <div class="input-group">
+            <label>Supabase Anon Key</label>
+            <input type="password" id="settings-supabase-key" placeholder="eyJ..." />
+          </div>
+          <div>
+            <button class="btn btn-primary" id="btn-save-db-config" style="padding: 6px 16px;">Save Keys</button>
+          </div>
+        </div>
+
+        <!-- 2. Account Security & Password -->
+        <div class="widget-card">
+          <div class="widget-title">
+            <span>Security & Password</span>
+            <i data-lucide="shield-check" style="color: var(--accent-emerald); width: 18px;"></i>
+          </div>
+          <form id="change-password-form" class="flex flex-col gap-3">
+            <div class="input-group">
+              <label>New Password</label>
+              <input type="password" id="new-password-input" placeholder="••••••••" required />
+            </div>
+            <div>
+              <button type="submit" class="btn btn-secondary" style="padding: 6px 16px;">Update Password</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 3. Account Actions / Sign Out -->
+        <div class="widget-card">
+          <div class="widget-title">
+            <span>Session & Account</span>
+            <i data-lucide="log-out" style="color: var(--accent-rose); width: 18px;"></i>
+          </div>
+          <p style="font-size: var(--font-size-xs); color: var(--text-secondary);">
+            Sign out of your active NEXORA session on this browser.
+          </p>
+          <div style="margin-top: var(--space-2);">
+            <button class="btn btn-danger" id="btn-sign-out" style="padding: 6px 18px;">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { getCredentials, saveCredentials } from './src/config/supabase.js';
+    import { showToast } from './src/components/toast.js';
+
+    async function initSettings() {
+      const user = await authService.getCurrentUser();
+      await renderNavigation('settings');
+      await renderRightSidebar();
+
+      // Load existing DB credentials
+      const creds = getCredentials();
+      document.getElementById('settings-supabase-url').value = creds.url || '';
+      document.getElementById('settings-supabase-key').value = creds.key || '';
+
+      // Save DB credentials
+      document.getElementById('btn-save-db-config')?.addEventListener('click', () => {
+        const u = document.getElementById('settings-supabase-url').value.trim();
+        const k = document.getElementById('settings-supabase-key').value.trim();
+        if (!u || !k) {
+          showToast('Please provide both URL and Key.', 'error');
+          return;
+        }
+        saveCredentials(u, k);
+        showToast('Settings saved! Reloading application...', 'success');
+        setTimeout(() => window.location.reload(), 800);
+      });
+
+      // Update Password
+      document.getElementById('change-password-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newPass = document.getElementById('new-password-input').value;
+        if (!newPass || newPass.length < 6) {
+          showToast('Password must be at least 6 characters.', 'error');
+          return;
+        }
+
+        try {
+          await authService.updatePassword(newPass);
+          document.getElementById('new-password-input').value = '';
+          showToast('Password updated successfully!', 'success');
+        } catch (err) {
+          showToast(err.message || 'Failed to update password', 'error');
+        }
+      });
+
+      // Sign Out
+      document.getElementById('btn-sign-out')?.addEventListener('click', async () => {
+        await authService.signOut();
+      });
+    }
+
+    initSettings();
+  </script>
+</body>
+</html>

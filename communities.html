@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communities — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/explore.css">
+  <link rel="stylesheet" href="assets/css/pages/feed.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <h2 id="communities-header-title">Communities</h2>
+        <button class="btn btn-primary" id="btn-open-create-community" style="padding: 4px 14px; font-size: var(--font-size-xs);">
+          <i data-lucide="plus" style="width: 14px;"></i> Create Community
+        </button>
+      </header>
+
+      <!-- Search bar -->
+      <div class="explore-search-bar" id="comm-search-bar">
+        <div class="search-box-wrap">
+          <i data-lucide="search"></i>
+          <input type="text" id="comm-search-input" placeholder="Search communities by topic, name, or keyword..." />
+        </div>
+      </div>
+
+      <!-- Communities Cards Grid or Community Detail View -->
+      <section id="communities-grid-container" class="explore-grid">
+        <div style="text-align: center; grid-column: 1 / -1; padding: var(--space-8); color: var(--text-muted);">
+          Loading communities...
+        </div>
+      </section>
+
+      <!-- Community Detail View (when ?c=slug is provided) -->
+      <section id="community-detail-container" class="hidden">
+        <div id="comm-detail-banner" style="height: 160px; background-size: cover; background-position: center;"></div>
+        <div style="padding: var(--space-4); border-bottom: 1px solid var(--border-subtle);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: -45px; margin-bottom: var(--space-3);">
+            <div class="avatar avatar-lg" id="comm-detail-avatar" style="border: 4px solid var(--bg-app);">
+              <img src="" alt="Community Logo" />
+            </div>
+            <div id="comm-detail-action-wrap"></div>
+          </div>
+          <h2 id="comm-detail-name" style="font-size: 1.4rem; font-weight: 800;"></h2>
+          <span id="comm-detail-slug" style="font-size: var(--font-size-xs); color: var(--text-muted);"></span>
+          <p id="comm-detail-desc" style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-top: var(--space-2); line-height: 1.5;"></p>
+          <div style="margin-top: var(--space-3); font-size: var(--font-size-xs); color: var(--text-muted);" id="comm-detail-stats"></div>
+        </div>
+
+        <!-- Community Feed Composer & Posts -->
+        <div id="comm-composer-root"></div>
+        <div id="comm-posts-container"></div>
+      </section>
+    </main>
+
+    <aside id="sidebar-right-root"></aside>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <!-- Create Community Modal -->
+  <div class="nexora-modal-overlay" id="create-community-modal">
+    <div class="nexora-modal-box">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-badge-icon"><i data-lucide="users"></i></div>
+          <h3>Create a New Community</h3>
+        </div>
+        <button type="button" class="btn-icon" onclick="document.getElementById('create-community-modal').classList.remove('active')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Community Name</label>
+          <input type="text" id="new-comm-name" placeholder="e.g. Artificial Intelligence Researchers" />
+        </div>
+        <div class="input-group">
+          <label>Unique URL Slug</label>
+          <input type="text" id="new-comm-slug" placeholder="e.g. ai-researchers" />
+          <span class="input-help">Only letters, numbers, and hyphens</span>
+        </div>
+        <div class="input-group">
+          <label>Description</label>
+          <textarea id="new-comm-desc" rows="3" placeholder="What is this community's focus and mission?"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('create-community-modal').classList.remove('active')">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-create-comm">Create Community</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { communityService } from './src/services/communityService.js';
+    import { postService } from './src/services/postService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { renderRightSidebar } from './src/components/rightSidebar.js';
+    import { setupComposer } from './src/components/postComposer.js';
+    import { createPostCard } from './src/components/postCard.js';
+    import { escapeHTML } from './src/utils/security.js';
+    import { showToast } from './src/components/toast.js';
+
+    let currentUser = null;
+
+    async function initCommunities() {
+      currentUser = await authService.getCurrentUser();
+      await renderNavigation('communities');
+      await renderRightSidebar();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const slugParam = urlParams.get('c');
+
+      if (slugParam) {
+        await loadCommunityDetail(slugParam);
+      } else {
+        await loadCommunitiesList();
+      }
+
+      // Create community trigger
+      document.getElementById('btn-open-create-community')?.addEventListener('click', () => {
+        if (!currentUser) {
+          showToast('Please sign in to launch a community', 'info');
+          return;
+        }
+        document.getElementById('create-community-modal').classList.add('active');
+      });
+
+      // Submit new community
+      document.getElementById('btn-submit-create-comm')?.addEventListener('click', async () => {
+        const name = document.getElementById('new-comm-name').value.trim();
+        const slug = document.getElementById('new-comm-slug').value.trim();
+        const desc = document.getElementById('new-comm-desc').value.trim();
+
+        if (!name || !slug) {
+          showToast('Community name and slug are required.', 'error');
+          return;
+        }
+
+        try {
+          await communityService.createCommunity({
+            name,
+            slug,
+            description: desc,
+            creatorId: currentUser.id
+          });
+
+          document.getElementById('create-community-modal').classList.remove('active');
+          showToast('Community created successfully!', 'success');
+          window.location.href = `communities.html?c=${encodeURIComponent(slug)}`;
+        } catch (err) {
+          showToast(err.message || 'Failed to create community', 'error');
+        }
+      });
+
+      // Search input
+      const searchInput = document.getElementById('comm-search-input');
+      let searchDebounce;
+      searchInput?.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+          loadCommunitiesList(searchInput.value);
+        }, 300);
+      });
+    }
+
+    async function loadCommunitiesList(search = '') {
+      const container = document.getElementById('communities-grid-container');
+      try {
+        const list = await communityService.getCommunities(search);
+        if (list.length === 0) {
+          container.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: var(--space-8);">
+              No communities found. Be the first to launch one!
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = list.map(c => `
+          <div class="community-card">
+            <div class="comm-banner" style="background-image: url('${c.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=200&fit=crop'}');"></div>
+            <div class="comm-body">
+              <div class="avatar avatar-md comm-avatar">
+                <img src="${c.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=' + c.slug}" alt="${escapeHTML(c.name)}" />
+              </div>
+              <h3 class="comm-title">${escapeHTML(c.name)}</h3>
+              <p class="comm-desc">${escapeHTML(c.description || 'Welcome to this community.')}</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: var(--space-2); border-top: 1px solid var(--border-subtle);">
+                <span style="font-size: var(--font-size-xs); color: var(--text-muted);">${c.members_count || 1} members</span>
+                <a href="communities.html?c=${encodeURIComponent(c.slug)}" class="btn btn-secondary" style="padding: 4px 12px; font-size: var(--font-size-xs);">View Hub</a>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        container.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent-rose); text-align: center;">Error loading communities</div>`;
+      }
+    }
+
+    async function loadCommunityDetail(slug) {
+      document.getElementById('communities-grid-container').classList.add('hidden');
+      document.getElementById('comm-search-bar').classList.add('hidden');
+      const detailContainer = document.getElementById('community-detail-container');
+      detailContainer.classList.remove('hidden');
+
+      const comm = await communityService.getCommunityBySlug(slug);
+      if (!comm) {
+        detailContainer.innerHTML = `<div class="empty-state"><h3>Community not found</h3></div>`;
+        return;
+      }
+
+      document.getElementById('communities-header-title').textContent = comm.name;
+      document.getElementById('comm-detail-name').textContent = comm.name;
+      document.getElementById('comm-detail-slug').textContent = `c/${comm.slug}`;
+      document.getElementById('comm-detail-desc').textContent = comm.description || '';
+      document.getElementById('comm-detail-stats').textContent = `${comm.members_count || 1} members · ${comm.posts_count || 0} discussions`;
+      document.getElementById('comm-detail-avatar').querySelector('img').src = comm.avatar_url;
+      document.getElementById('comm-detail-banner').style.backgroundImage = `url('${comm.banner_url}')`;
+
+      // Membership action button
+      const actionWrap = document.getElementById('comm-detail-action-wrap');
+      if (currentUser) {
+        const isMember = await communityService.isMember(comm.id, currentUser.id);
+        actionWrap.innerHTML = `
+          <button class="btn ${isMember ? 'btn-outline' : 'btn-primary'}" id="btn-toggle-membership">
+            ${isMember ? 'Joined' : 'Join Community'}
+          </button>
+        `;
+
+        document.getElementById('btn-toggle-membership').onclick = async () => {
+          const btn = document.getElementById('btn-toggle-membership');
+          if (btn.textContent.trim() === 'Joined') {
+            await communityService.leaveCommunity(comm.id, currentUser.id);
+            btn.textContent = 'Join Community';
+            btn.className = 'btn btn-primary';
+            showToast('Left community', 'info');
+          } else {
+            await communityService.joinCommunity(comm.id, currentUser.id);
+            btn.textContent = 'Joined';
+            btn.className = 'btn btn-outline';
+            showToast('Joined community!', 'success');
+          }
+        };
+
+        // Setup composer inside community
+        setupComposer({
+          containerId: 'comm-composer-root',
+          currentUser,
+          communityId: comm.id,
+          onPostCreated: (post) => {
+            const postsContainer = document.getElementById('comm-posts-container');
+            const card = createPostCard(post, currentUser);
+            postsContainer.prepend(card);
+          }
+        });
+      }
+
+      // Load posts belonging to this community
+      const postsContainer = document.getElementById('comm-posts-container');
+      const posts = await postService.getPostsByCommunity(comm.id, currentUser?.id);
+      postsContainer.innerHTML = '';
+
+      if (posts.length === 0) {
+        postsContainer.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon"><i data-lucide="message-square"></i></div>
+            <h3>No community discussions yet</h3>
+            <p>Post the first topic in c/${comm.slug}!</p>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        posts.forEach(p => {
+          postsContainer.appendChild(createPostCard(p, currentUser));
+        });
+      }
+    }
+
+    initCommunities();
+  </script>
+</body>
+</html>

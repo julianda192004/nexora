@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/explore.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container" style="max-width: 1400px;">
+    <aside id="sidebar-left-root"></aside>
+
+    <main class="main-content" style="max-width: 100%; border-right: none;">
+      <!-- Access Denied State (default until verified) -->
+      <div id="admin-denied" class="empty-state hidden" style="margin-top: var(--space-12);">
+        <div class="empty-icon" style="color: var(--accent-rose);"><i data-lucide="shield-alert"></i></div>
+        <h3>Access Restricted</h3>
+        <p>This administrative console requires verified database admin privileges.</p>
+        <a href="feed.html" class="btn btn-secondary" style="margin-top: var(--space-4);">Return to Feed</a>
+      </div>
+
+      <!-- Admin Workspace -->
+      <div id="admin-workspace" class="hidden">
+        <header class="page-header" style="justify-content: space-between;">
+          <div class="flex items-center gap-3">
+            <div class="modal-badge-icon" style="color: var(--accent-rose); background: rgba(244,63,94,0.15);">
+              <i data-lucide="shield"></i>
+            </div>
+            <div>
+              <h2 style="font-size: 1.25rem;">NEXORA Administration</h2>
+              <span style="font-size: var(--font-size-xs); color: var(--text-muted);">Verified Database Role Check Passed</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary" id="btn-refresh-admin" style="font-size: var(--font-size-xs); padding: 4px 12px;">
+            <i data-lucide="refresh-cw" style="width: 14px;"></i> Refresh
+          </button>
+        </header>
+
+        <!-- Metrics Grid -->
+        <div class="admin-metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon"><i data-lucide="users"></i></div>
+            <div>
+              <div class="metric-val" id="metric-users">0</div>
+              <div class="metric-label">Registered Users</div>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon" style="color: var(--accent-electric); background: rgba(56, 189, 248, 0.15);"><i data-lucide="file-text"></i></div>
+            <div>
+              <div class="metric-val" id="metric-posts">0</div>
+              <div class="metric-label">Published Posts</div>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon" style="color: var(--accent-violet); background: rgba(139, 92, 246, 0.15);"><i data-lucide="network"></i></div>
+            <div>
+              <div class="metric-val" id="metric-comms">0</div>
+              <div class="metric-label">Active Communities</div>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon" style="color: var(--accent-rose); background: rgba(244, 63, 94, 0.15);"><i data-lucide="alert-triangle"></i></div>
+            <div>
+              <div class="metric-val" id="metric-reports">0</div>
+              <div class="metric-label">Pending Reports</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Management Sections -->
+        <div style="padding: 0 var(--space-4) var(--space-8); display: flex; flex-direction: column; gap: var(--space-6);">
+          <!-- 1. Reported Content -->
+          <div class="widget-card">
+            <div class="widget-title">
+              <span>Reported Content Queue</span>
+              <i data-lucide="flag" style="color: var(--accent-rose); width: 18px;"></i>
+            </div>
+            <div id="reports-table-wrap" style="overflow-x: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Reporter</th>
+                    <th>Reason</th>
+                    <th>Post Content</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-table-body">
+                  <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No pending reports.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 2. User Accounts Management -->
+          <div class="widget-card">
+            <div class="widget-title">
+              <span>Registered Accounts</span>
+              <i data-lucide="user-check" style="color: var(--primary-400); width: 18px;"></i>
+            </div>
+            <div id="users-table-wrap" style="overflow-x: auto;">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Followers</th>
+                    <th>Posts</th>
+                    <th>Joined</th>
+                    <th>Manage Role</th>
+                  </tr>
+                </thead>
+                <tbody id="users-table-body">
+                  <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Loading user records...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { adminService } from './src/services/adminService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { formatRelativeTime } from './src/utils/formatters.js';
+    import { escapeHTML } from './src/utils/security.js';
+    import { showToast } from './src/components/toast.js';
+
+    let currentUser = null;
+
+    async function initAdmin() {
+      currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      await renderNavigation('admin');
+
+      // VERIFY ADMIN ROLE WITH BACKEND POLICY
+      const isAdmin = await adminService.verifyAdminAccess(currentUser.id);
+      if (!isAdmin) {
+        document.getElementById('admin-denied').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      // Role check passed
+      document.getElementById('admin-workspace').classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+
+      await loadDashboardData();
+
+      document.getElementById('btn-refresh-admin')?.addEventListener('click', loadDashboardData);
+    }
+
+    async function loadDashboardData() {
+      try {
+        const metrics = await adminService.getMetrics();
+        document.getElementById('metric-users').textContent = metrics.usersCount;
+        document.getElementById('metric-posts').textContent = metrics.postsCount;
+        document.getElementById('metric-comms').textContent = metrics.communitiesCount;
+        document.getElementById('metric-reports').textContent = metrics.reportsCount;
+
+        // Load Users
+        const users = await adminService.getUsersList(25);
+        const usersTbody = document.getElementById('users-table-body');
+        if (users.length === 0) {
+          usersTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No users found.</td></tr>`;
+        } else {
+          usersTbody.innerHTML = users.map(u => `
+            <tr>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="avatar avatar-xs">
+                    <img src="${u.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=' + u.username}" alt="${escapeHTML(u.display_name)}" />
+                  </div>
+                  <div>
+                    <div style="font-weight:600; color:var(--text-primary);">${escapeHTML(u.display_name)}</div>
+                    <div style="font-size:11px; color:var(--text-muted);">@${escapeHTML(u.username)}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge-role badge-${u.role || 'user'}">${(u.role || 'user').toUpperCase()}</span>
+              </td>
+              <td>${u.followers_count || 0}</td>
+              <td>${u.posts_count || 0}</td>
+              <td>${formatRelativeTime(u.created_at)}</td>
+              <td>
+                <select class="role-selector" data-uid="${u.id}" style="padding: 2px 6px; font-size: 11px; border-radius: var(--radius-sm); background: var(--bg-surface-elevated);">
+                  <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+                  <option value="moderator" ${u.role === 'moderator' ? 'selected' : ''}>Moderator</option>
+                  <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                </select>
+              </td>
+            </tr>
+          `).join('');
+
+          usersTbody.querySelectorAll('.role-selector').forEach(sel => {
+            sel.onchange = async () => {
+              const targetUid = sel.getAttribute('data-uid');
+              const newRole = sel.value;
+              try {
+                await adminService.updateUserRole(currentUser.id, targetUid, newRole);
+                showToast(`User updated to ${newRole}`, 'success');
+              } catch (err) {
+                showToast(err.message || 'Failed to update role', 'error');
+              }
+            };
+          });
+        }
+
+        // Load Reports
+        const reports = await adminService.getReports();
+        const reportsTbody = document.getElementById('reports-table-body');
+        if (reports.length === 0) {
+          reportsTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:var(--space-4);">No reported content. Clean feed!</td></tr>`;
+        } else {
+          reportsTbody.innerHTML = reports.map(r => `
+            <tr>
+              <td>@${escapeHTML(r.reporter?.username || 'user')}</td>
+              <td>${escapeHTML(r.reason)}</td>
+              <td class="truncate" style="max-width:200px;">${escapeHTML(r.reported_post?.content || 'Media/No Text')}</td>
+              <td><strong>${r.status.toUpperCase()}</strong></td>
+              <td>
+                <div class="flex gap-2">
+                  <button class="btn btn-secondary btn-resolve-rep" data-id="${r.id}" style="padding:2px 8px; font-size:11px;">Dismiss</button>
+                  ${r.reported_post_id ? `
+                    <button class="btn btn-danger btn-delete-rep-post" data-pid="${r.reported_post_id}" data-rid="${r.id}" style="padding:2px 8px; font-size:11px;">Delete Post</button>
+                  ` : ''}
+                </div>
+              </td>
+            </tr>
+          `).join('');
+
+          reportsTbody.querySelectorAll('.btn-resolve-rep').forEach(btn => {
+            btn.onclick = async () => {
+              await adminService.resolveReport(currentUser.id, btn.getAttribute('data-id'), 'dismissed');
+              loadDashboardData();
+              showToast('Report dismissed', 'info');
+            };
+          });
+
+          reportsTbody.querySelectorAll('.btn-delete-rep-post').forEach(btn => {
+            btn.onclick = async () => {
+              const pid = btn.getAttribute('data-pid');
+              const rid = btn.getAttribute('data-rid');
+              await adminService.deletePostAsAdmin(currentUser.id, pid, 'Violated community terms');
+              await adminService.resolveReport(currentUser.id, rid, 'actioned');
+              loadDashboardData();
+              showToast('Post removed and report closed', 'success');
+            };
+          });
+        }
+
+      } catch (err) {
+        showToast('Error loading admin metrics', 'error');
+      }
+    }
+
+    initAdmin();
+  </script>
+</body>
+</html>

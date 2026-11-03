@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messages — NEXORA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/pages/messages.css">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <div id="mobile-top-root"></div>
+
+  <div class="app-container" style="max-width: 1400px;">
+    <aside id="sidebar-left-root"></aside>
+
+    <!-- Main Chat Workspace -->
+    <main class="main-content" style="max-width: 100%; border-right: none;">
+      <div class="chat-container">
+        <!-- Conversations List Sidebar -->
+        <aside class="conversations-sidebar" id="conversations-sidebar">
+          <div class="conversations-header">
+            <h2 style="font-size: 1.2rem; font-weight: 700;">Direct Messages</h2>
+            <button class="btn-icon" id="btn-new-message" title="New conversation">
+              <i data-lucide="edit"></i>
+            </button>
+          </div>
+
+          <div class="conversations-list" id="conversations-list-root">
+            <div style="text-align: center; padding: var(--space-6); color: var(--text-muted);">
+              Loading conversations...
+            </div>
+          </div>
+        </aside>
+
+        <!-- Active Chat Area -->
+        <section class="chat-pane" id="chat-pane">
+          <!-- Chat Header -->
+          <div class="chat-pane-header" id="chat-header">
+            <div class="flex items-center gap-3">
+              <button class="btn-icon" id="btn-back-to-convs" style="display: none;">
+                <i data-lucide="arrow-left"></i>
+              </button>
+              <div class="avatar avatar-sm" id="chat-partner-avatar">
+                <img src="https://api.dicebear.com/7.x/identicon/svg?seed=chat" alt="User" />
+              </div>
+              <div>
+                <h3 id="chat-partner-name" style="font-size: 0.95rem; font-weight: 600;">Select a conversation</h3>
+                <span id="chat-partner-status" style="font-size: 0.72rem; color: var(--accent-emerald);">Active now</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Messages Stream -->
+          <div class="chat-messages-area" id="chat-messages-area">
+            <div class="empty-state" style="margin: auto;">
+              <div class="empty-icon"><i data-lucide="message-square"></i></div>
+              <h3>Your Encrypted Direct Messages</h3>
+              <p>Choose an existing thread or start a new private discussion.</p>
+            </div>
+          </div>
+
+          <!-- Message Input Bar -->
+          <form class="chat-input-bar" id="chat-input-form" style="display: none;">
+            <input type="text" id="chat-message-input" placeholder="Type a message..." autocomplete="off" />
+            <button type="submit" class="btn btn-primary btn-icon" id="btn-send-message">
+              <i data-lucide="send" style="width: 18px; height: 18px;"></i>
+            </button>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <nav id="mobile-bottom-root"></nav>
+
+  <script type="module">
+    import { authService } from './src/services/authService.js';
+    import { messageService } from './src/services/messageService.js';
+    import { renderNavigation } from './src/components/navbar.js';
+    import { formatRelativeTime } from './src/utils/formatters.js';
+    import { escapeHTML } from './src/utils/security.js';
+    import { showToast } from './src/components/toast.js';
+
+    let currentUser = null;
+    let activeConvId = null;
+    let activePartner = null;
+    let realtimeChannel = null;
+
+    async function initMessages() {
+      currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      await renderNavigation('messages');
+
+      // Check URL for partner param (e.g. from profile page: messages.html?partner=UUID)
+      const urlParams = new URLSearchParams(window.location.search);
+      const partnerIdParam = urlParams.get('partner');
+
+      await loadConversationsList();
+
+      if (partnerIdParam && partnerIdParam !== currentUser.id) {
+        try {
+          const convId = await messageService.getOrCreateDirectConversation(currentUser.id, partnerIdParam);
+          openConversation(convId);
+        } catch (err) {
+          showToast('Failed to open conversation with user', 'error');
+        }
+      }
+    }
+
+    async function loadConversationsList() {
+      const container = document.getElementById('conversations-list-root');
+      try {
+        const convs = await messageService.getConversations(currentUser.id);
+        if (convs.length === 0) {
+          container.innerHTML = `
+            <div style="text-align: center; padding: var(--space-8); color: var(--text-muted); font-size: var(--font-size-xs);">
+              No conversations yet. Visit someone's profile to send a direct message.
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = convs.map(c => {
+          const partner = c.partner || { username: 'user', display_name: 'Nexora User' };
+          const lastText = c.lastMessage?.content || 'Started a conversation';
+          const lastTime = c.lastMessage?.created_at ? formatRelativeTime(c.lastMessage.created_at) : '';
+
+          return `
+            <div class="conversation-item ${activeConvId === c.id ? 'active' : ''}" data-conv-id="${c.id}" data-partner='${JSON.stringify(partner).replace(/'/g, "&apos;")}'>
+              <div class="avatar avatar-sm">
+                <img src="${partner.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=' + partner.username}" alt="${escapeHTML(partner.display_name)}" />
+              </div>
+              <div class="conv-info">
+                <div class="conv-top">
+                  <span class="conv-name truncate">${escapeHTML(partner.display_name)}</span>
+                  <span class="conv-time">${lastTime}</span>
+                </div>
+                <div class="conv-preview truncate">${escapeHTML(lastText)}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Attach click listeners to conversations
+        container.querySelectorAll('.conversation-item').forEach(item => {
+          item.onclick = () => {
+            const convId = item.getAttribute('data-conv-id');
+            const partner = JSON.parse(item.getAttribute('data-partner'));
+            openConversation(convId, partner);
+          };
+        });
+
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--accent-rose); padding: var(--space-4); font-size: 12px;">Failed to load messages</div>`;
+      }
+    }
+
+    async function openConversation(convId, partner = null) {
+      activeConvId = convId;
+      activePartner = partner;
+
+      // Update UI active states
+      document.querySelectorAll('.conversation-item').forEach(i => {
+        i.classList.toggle('active', i.getAttribute('data-conv-id') === convId);
+      });
+
+      if (partner) {
+        document.getElementById('chat-partner-name').textContent = partner.display_name;
+        document.getElementById('chat-partner-avatar').querySelector('img').src = partner.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${partner.username}`;
+      }
+
+      document.getElementById('chat-input-form').style.display = 'flex';
+      const messagesArea = document.getElementById('chat-messages-area');
+      messagesArea.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 13px; margin: auto;">Loading messages...</div>';
+
+      // Load messages
+      const msgs = await messageService.getMessages(convId);
+      renderMessages(msgs);
+
+      // Subscribe to Realtime messages
+      if (realtimeChannel) {
+        realtimeChannel.unsubscribe();
+      }
+      realtimeChannel = messageService.subscribeToConversation(convId, (newMsg) => {
+        appendMessage(newMsg);
+      });
+    }
+
+    function renderMessages(messages) {
+      const messagesArea = document.getElementById('chat-messages-area');
+      messagesArea.innerHTML = '';
+
+      if (!messages || messages.length === 0) {
+        messagesArea.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); font-size: var(--font-size-xs); margin: auto;">
+            Send a message to begin chatting.
+          </div>
+        `;
+        return;
+      }
+
+      messages.forEach(msg => appendMessage(msg, false));
+      scrollToBottom();
+    }
+
+    function appendMessage(msg, scroll = true) {
+      const messagesArea = document.getElementById('chat-messages-area');
+      const isSent = msg.sender_id === currentUser.id;
+
+      const row = document.createElement('div');
+      row.className = `message-bubble-row ${isSent ? 'sent' : 'received'}`;
+      row.innerHTML = `
+        <div class="message-bubble">
+          ${escapeHTML(msg.content)}
+          <span class="message-time">${formatRelativeTime(msg.created_at)}</span>
+        </div>
+      `;
+
+      messagesArea.appendChild(row);
+      if (scroll) scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      const messagesArea = document.getElementById('chat-messages-area');
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    // Send message handler
+    document.getElementById('chat-input-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('chat-message-input');
+      const text = input.value.trim();
+      if (!text || !activeConvId) return;
+
+      input.value = '';
+
+      try {
+        const newMsg = await messageService.sendMessage({
+          conversationId: activeConvId,
+          senderId: currentUser.id,
+          content: text
+        });
+        appendMessage(newMsg);
+      } catch (err) {
+        showToast(err.message || 'Failed to send message', 'error');
+      }
+    });
+
+    initMessages();
+  </script>
+</body>
+</html>
