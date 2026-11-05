@@ -8,10 +8,10 @@
  */
 window.NEXORA_CONFIG = {
   // Replace with your real Supabase project URL (e.g. 'https://xyzcompany.supabase.co')
-  SUPABASE_URL: window.SUPABASE_URL || localStorage.getItem('NEXORA_SUPABASE_URL') || '',
+  SUPABASE_URL: window.SUPABASE_URL || localStorage.getItem('NEXORA_SUPABASE_URL') || 'https://plhuhkpkondfzkhgtxuf.supabase.co',
   
   // Replace with your real Supabase anon public API key
-  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || localStorage.getItem('NEXORA_SUPABASE_ANON_KEY') || '',
+  SUPABASE_ANON_KEY: window.SUPABASE_ANON_KEY || localStorage.getItem('NEXORA_SUPABASE_ANON_KEY') || 'sb_publishable_1TVCn-VUewFc-L52L_sCEA_q-rzqcjt',
   
   // App metadata
   APP_NAME: 'NEXORA',
