@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.communities (
     description TEXT,
     avatar_url TEXT,
     banner_url TEXT,
-    creator_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    creator_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     members_count INTEGER NOT NULL DEFAULT 1,
     posts_count INTEGER NOT NULL DEFAULT 0,
     is_private BOOLEAN NOT NULL DEFAULT FALSE,
@@ -750,7 +750,7 @@ VALUES
         'Discussions on artificial intelligence, software engineering, cloud computing, and developer tools.',
         'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&h=200&fit=crop',
         'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&h=400&fit=crop',
-        '00000000-0000-0000-0000-000000000000',
+        NULL,
         1420,
         38,
         false
@@ -762,7 +762,7 @@ VALUES
         'UI/UX design, visual aesthetics, generative art, and creative showcases from around the world.',
         'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=200&h=200&fit=crop',
         'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1200&h=400&fit=crop',
-        '00000000-0000-0000-0000-000000000000',
+        NULL,
         890,
         24,
         false
@@ -774,7 +774,7 @@ VALUES
         'Futurism, digital identity, decentralized systems, and high-tech street aesthetics.',
         'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&h=200&fit=crop',
         'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=1200&h=400&fit=crop',
-        '00000000-0000-0000-0000-000000000000',
+        NULL,
         612,
         15,
         false

@@ -14,5 +14,8 @@
     "css3"
   ],
   "author": "NEXORA Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "pg": "^8.23.1"
+  }
 }

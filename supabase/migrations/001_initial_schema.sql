@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.communities (
     description TEXT,
     avatar_url TEXT,
     banner_url TEXT,
-    creator_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    creator_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     members_count INTEGER NOT NULL DEFAULT 1,
     posts_count INTEGER NOT NULL DEFAULT 0,
     is_private BOOLEAN NOT NULL DEFAULT FALSE,
