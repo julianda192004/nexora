@@ -3,15 +3,31 @@
  * Renders Left Sidebar, Mobile Topbar, and Mobile Bottom Nav
  */
 import { authService } from '../services/authService.js';
+import { profileService } from '../services/profileService.js';
 import { notificationService } from '../services/notificationService.js';
 
 export async function renderNavigation(activePage = 'feed') {
   const user = await authService.getCurrentUser();
   const meta = user?.user_metadata || {};
   const username = meta.username || 'user';
-  const displayName = meta.display_name || 'Nexora Member';
-  const avatarUrl = meta.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${username}`;
-  const role = meta.role || 'user';
+
+  // Fetch latest profile data from database (not stale auth session metadata)
+  let displayName = meta.display_name || 'Nexora Member';
+  let avatarUrl = meta.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${username}`;
+  let role = meta.role || 'user';
+
+  if (user) {
+    try {
+      const profile = await profileService.getProfileById(user.id);
+      if (profile) {
+        displayName = profile.display_name || displayName;
+        avatarUrl = profile.avatar_url || avatarUrl;
+        role = profile.role || role;
+      }
+    } catch (e) {
+      // fallback to metadata if profile fetch fails
+    }
+  }
 
   let unreadCount = 0;
   if (user) {

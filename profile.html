@@ -403,25 +403,32 @@
       }
     });
 
-    async function loadUserPosts() {
+    async function loadUserPosts(mediaOnly = false) {
       const postsContainer = document.getElementById('profile-posts-container');
       try {
         const posts = await postService.getPostsByUserId(targetProfile.id, currentUser?.id);
         postsContainer.innerHTML = '';
 
-        if (!posts || posts.length === 0) {
+        let filteredPosts = posts;
+        if (mediaOnly) {
+          filteredPosts = (posts || []).filter(p => p.media_urls && p.media_urls.length > 0);
+        }
+
+        if (!filteredPosts || filteredPosts.length === 0) {
           postsContainer.innerHTML = `
             <div class="empty-state">
-              <div class="empty-icon"><i data-lucide="message-square"></i></div>
-              <h3>No posts published yet</h3>
-              <p>When @${targetProfile.username} publishes posts, they will show up here.</p>
+              <div class="empty-icon"><i data-lucide="${mediaOnly ? 'image' : 'message-square'}"></i></div>
+              <h3>${mediaOnly ? 'No media posts yet' : 'No posts published yet'}</h3>
+              <p>${mediaOnly 
+                ? `When @${targetProfile.username} shares photos or videos, they will appear here.`
+                : `When @${targetProfile.username} publishes posts, they will show up here.`}</p>
             </div>
           `;
           if (window.lucide) window.lucide.createIcons();
           return;
         }
 
-        posts.forEach(post => {
+        filteredPosts.forEach(post => {
           const card = createPostCard(post, currentUser);
           postsContainer.appendChild(card);
         });
@@ -429,6 +436,16 @@
         postsContainer.innerHTML = `<div style="padding:var(--space-6); text-align:center; color:var(--accent-rose);">Failed to load posts</div>`;
       }
     }
+
+    // Profile tab switching (Posts / Media)
+    document.querySelectorAll('[data-ptab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-ptab]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.getAttribute('data-ptab');
+        loadUserPosts(tab === 'media');
+      });
+    });
 
     initProfile();
   </script>

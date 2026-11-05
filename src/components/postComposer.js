@@ -12,13 +12,14 @@ export function setupComposer({ containerId, currentUser, onPostCreated = null, 
   if (!container || !currentUser) return;
 
   const meta = currentUser.user_metadata || {};
-  const avatarUrl = meta.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${meta.username || 'user'}`;
+  const avatarUrl = currentUser._profileAvatarUrl || meta.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${meta.username || 'user'}`;
+  const displayNameText = currentUser._profileDisplayName || meta.display_name || 'User';
 
   container.className = 'feed-composer';
   container.innerHTML = `
     <div class="composer-avatar">
       <div class="avatar avatar-md">
-        <img src="${avatarUrl}" alt="${meta.display_name || 'User'}" />
+        <img src="${avatarUrl}" alt="${displayNameText}" />
       </div>
     </div>
 

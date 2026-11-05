@@ -93,6 +93,7 @@
   <script type="module">
     import { authService } from './src/services/authService.js';
     import { postService } from './src/services/postService.js';
+    import { profileService } from './src/services/profileService.js';
     import { renderNavigation } from './src/components/navbar.js';
     import { renderRightSidebar } from './src/components/rightSidebar.js';
     import { setupComposer } from './src/components/postComposer.js';
@@ -107,6 +108,17 @@
     async function initFeed() {
       currentUser = await authService.getCurrentUser();
       
+      // Fetch latest profile data and attach to currentUser for composer
+      if (currentUser) {
+        try {
+          const profile = await profileService.getProfileById(currentUser.id);
+          if (profile) {
+            currentUser._profileAvatarUrl = profile.avatar_url;
+            currentUser._profileDisplayName = profile.display_name;
+          }
+        } catch (e) {}
+      }
+
       // Render layout components
       await renderNavigation('feed');
       await renderRightSidebar();
