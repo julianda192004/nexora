@@ -1,0 +1,16 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/register", "destination": "/register.html" },
+    { "source": "/feed", "destination": "/feed.html" },
+    { "source": "/explore", "destination": "/explore.html" },
+    { "source": "/profile", "destination": "/profile.html" },
+    { "source": "/messages", "destination": "/messages.html" },
+    { "source": "/notifications", "destination": "/notifications.html" },
+    { "source": "/communities", "destination": "/communities.html" },
+    { "source": "/bookmarks", "destination": "/bookmarks.html" },
+    { "source": "/settings", "destination": "/settings.html" },
+    { "source": "/admin", "destination": "/admin.html" }
+  ]
+}
