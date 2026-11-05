@@ -29,5 +29,32 @@ export const storageService = {
       .getPublicUrl(filePath);
 
     return publicUrl;
+  },
+
+  /**
+   * Deletes a file from a specified Supabase storage bucket
+   */
+  async deleteFile({ bucket = 'avatars', pathOrUrl }) {
+    if (!ensureClient() || !pathOrUrl) return false;
+
+    try {
+      let filePath = pathOrUrl;
+      const marker = `/storage/v1/object/public/${bucket}/`;
+      if (pathOrUrl.includes(marker)) {
+        filePath = decodeURIComponent(pathOrUrl.split(marker)[1]);
+      }
+      if (filePath.includes('?')) {
+        filePath = filePath.split('?')[0];
+      }
+
+      if (filePath) {
+        const { error } = await supabase.storage.from(bucket).remove([filePath]);
+        if (error) console.warn(`Storage delete warning (${bucket}):`, error.message);
+        return !error;
+      }
+    } catch (err) {
+      console.warn('Storage delete exception:', err);
+    }
+    return false;
   }
 };

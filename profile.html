@@ -108,6 +108,31 @@
         <button type="button" class="btn-icon" onclick="document.getElementById('edit-profile-modal').classList.remove('active')">&times;</button>
       </div>
       <div class="modal-body">
+        <!-- Avatar Upload -->
+        <div class="input-group">
+          <label>Profile Photo</label>
+          <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <div class="avatar avatar-lg">
+              <img id="edit-avatar-preview" src="https://api.dicebear.com/7.x/identicon/svg?seed=user" alt="Avatar preview" />
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+              <label for="edit-avatar-file" class="btn btn-secondary" style="padding: 4px 12px; font-size: var(--font-size-xs); cursor: pointer;">
+                <i data-lucide="camera" style="width:14px; height:14px; margin-right:4px;"></i> Change Photo
+              </label>
+              <input type="file" id="edit-avatar-file" accept="image/jpeg,image/png,image/webp,image/gif" style="display: none;" />
+              <span id="edit-avatar-filename" style="font-size: 11px; color: var(--text-muted);"></span>
+            </div>
+          </div>
+        </div>
+        <!-- Banner Upload -->
+        <div class="input-group">
+          <label>Cover Banner</label>
+          <div id="edit-banner-preview" style="width: 100%; height: 90px; border-radius: var(--radius-md); background: var(--bg-surface-card); background-size: cover; background-position: center; border: 1px dashed var(--border-subtle); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden;" onclick="document.getElementById('edit-banner-file').click()">
+            <span id="edit-banner-label" style="font-size: var(--font-size-xs); color: var(--text-muted);"><i data-lucide="image" style="width:16px; height:16px;"></i> Click to change banner</span>
+          </div>
+          <input type="file" id="edit-banner-file" accept="image/jpeg,image/png,image/webp" style="display: none;" />
+          <span id="edit-banner-filename" style="font-size: 11px; color: var(--text-muted);"></span>
+        </div>
         <div class="input-group">
           <label>Display Name</label>
           <input type="text" id="edit-display-name" />
@@ -136,6 +161,7 @@
     import { authService } from './src/services/authService.js';
     import { profileService } from './src/services/profileService.js';
     import { postService } from './src/services/postService.js';
+    import { storageService } from './src/services/storageService.js';
     import { renderNavigation } from './src/components/navbar.js';
     import { renderRightSidebar } from './src/components/rightSidebar.js';
     import { createPostCard } from './src/components/postCard.js';
@@ -144,6 +170,8 @@
 
     let currentUser = null;
     let targetProfile = null;
+    let pendingAvatarFile = null;
+    let pendingBannerFile = null;
 
     async function initProfile() {
       currentUser = await authService.getCurrentUser();
@@ -220,7 +248,24 @@
           document.getElementById('edit-bio').value = targetProfile.bio || '';
           document.getElementById('edit-website').value = targetProfile.website || '';
           document.getElementById('edit-location').value = targetProfile.location || '';
+          // Reset pending files
+          pendingAvatarFile = null;
+          pendingBannerFile = null;
+          document.getElementById('edit-avatar-filename').textContent = '';
+          document.getElementById('edit-banner-filename').textContent = '';
+          // Set avatar preview
+          document.getElementById('edit-avatar-preview').src = targetProfile.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${targetProfile.username}`;
+          // Set banner preview
+          const bannerPreview = document.getElementById('edit-banner-preview');
+          if (targetProfile.banner_url) {
+            bannerPreview.style.backgroundImage = `url('${targetProfile.banner_url}')`;
+            document.getElementById('edit-banner-label').style.display = 'none';
+          } else {
+            bannerPreview.style.backgroundImage = '';
+            document.getElementById('edit-banner-label').style.display = '';
+          }
           document.getElementById('edit-profile-modal').classList.add('active');
+          if (window.lucide) window.lucide.createIcons();
         };
       } else {
         actionsContainer.innerHTML = `
@@ -258,7 +303,41 @@
       if (window.lucide) window.lucide.createIcons();
     }
 
-    // Save Profile edits
+    // File preview listeners
+    document.getElementById('edit-avatar-file')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        showToast('Avatar must be under 2MB', 'error');
+        e.target.value = '';
+        return;
+      }
+      pendingAvatarFile = file;
+      document.getElementById('edit-avatar-filename').textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => { document.getElementById('edit-avatar-preview').src = ev.target.result; };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('edit-banner-file')?.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 4 * 1024 * 1024) {
+        showToast('Banner must be under 4MB', 'error');
+        e.target.value = '';
+        return;
+      }
+      pendingBannerFile = file;
+      document.getElementById('edit-banner-filename').textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('edit-banner-preview').style.backgroundImage = `url('${ev.target.result}')`;
+        document.getElementById('edit-banner-label').style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Save Profile edits (with avatar/banner upload & old file cleanup)
     document.getElementById('btn-save-profile')?.addEventListener('click', async () => {
       const displayName = document.getElementById('edit-display-name').value.trim();
       const bio = document.getElementById('edit-bio').value.trim();
@@ -270,24 +349,57 @@
         return;
       }
 
-      try {
-        await profileService.updateProfile(currentUser.id, {
-          display_name: displayName,
-          bio,
-          website,
-          location
-        });
+      const saveBtn = document.getElementById('btn-save-profile');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
 
-        targetProfile.display_name = displayName;
-        targetProfile.bio = bio;
-        targetProfile.website = website;
-        targetProfile.location = location;
+      try {
+        const updates = { display_name: displayName, bio, website, location };
+
+        // Upload new avatar & delete old one
+        if (pendingAvatarFile) {
+          const oldAvatarUrl = targetProfile.avatar_url;
+          const newAvatarUrl = await storageService.uploadFile({
+            bucket: 'avatars',
+            userId: currentUser.id,
+            file: pendingAvatarFile
+          });
+          updates.avatar_url = newAvatarUrl;
+          // Delete old avatar from storage (if it was a Supabase upload, not default dicebear)
+          if (oldAvatarUrl && oldAvatarUrl.includes('/storage/v1/object/public/avatars/')) {
+            await storageService.deleteFile({ bucket: 'avatars', pathOrUrl: oldAvatarUrl });
+          }
+        }
+
+        // Upload new banner & delete old one
+        if (pendingBannerFile) {
+          const oldBannerUrl = targetProfile.banner_url;
+          const newBannerUrl = await storageService.uploadFile({
+            bucket: 'banners',
+            userId: currentUser.id,
+            file: pendingBannerFile
+          });
+          updates.banner_url = newBannerUrl;
+          // Delete old banner from storage
+          if (oldBannerUrl && oldBannerUrl.includes('/storage/v1/object/public/banners/')) {
+            await storageService.deleteFile({ bucket: 'banners', pathOrUrl: oldBannerUrl });
+          }
+        }
+
+        const updatedProfile = await profileService.updateProfile(currentUser.id, updates);
+        Object.assign(targetProfile, updatedProfile);
+
+        pendingAvatarFile = null;
+        pendingBannerFile = null;
 
         renderProfileDetails();
         document.getElementById('edit-profile-modal').classList.remove('active');
         showToast('Profile updated successfully!', 'success');
       } catch (err) {
         showToast(err.message || 'Failed to update profile', 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
       }
     });
 

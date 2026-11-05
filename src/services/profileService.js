@@ -2,6 +2,7 @@
  * NEXORA Profile Service
  */
 import { supabase, ensureClient } from '../config/supabase.js';
+import { storageService } from './storageService.js';
 
 export const profileService = {
   /**
